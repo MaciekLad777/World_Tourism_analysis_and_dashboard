@@ -1,5 +1,7 @@
 /*
 CLEANING DATA
+Goal: Preprocess and clean data, so it is ready to further exploration
+
 */
 
 /*

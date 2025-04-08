@@ -1,6 +1,6 @@
 /*
-Step 0
-Let's see our columns
+Features exploration
+Goal: Simple exploring every column, what are theirs characteristics, getting in touch with countries performance.
 */
 
 SELECT column_name

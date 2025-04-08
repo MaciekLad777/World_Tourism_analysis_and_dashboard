@@ -1,4 +1,9 @@
 /*
+Creating tables
+Goal: Preapring tables and importing ours data
+*/
+
+/*
   Step 1: Creating the main table for tourism data
 
   We begin by creating a table that will store all the tourism-related metrics.
