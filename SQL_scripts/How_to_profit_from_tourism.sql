@@ -34,3 +34,5 @@ Economic Analysis  TOP 20 AVG performers ALL-TIME
     What actions to take to run a stable and profitable tourism economy?
 */
 
+
+SELECT FROM tourism_data
