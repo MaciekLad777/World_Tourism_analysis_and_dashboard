@@ -1,5 +1,7 @@
 /*
-GOAL: Understand what factors influence tourism. How to run a country to generate tourism revenue.
+HOW TO PROFIT FROM TOURISM.
+
+GOAL: Understand what factors make tourism sector most profitable.
 
 
 Case Analysis

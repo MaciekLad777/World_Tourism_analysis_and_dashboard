@@ -1,5 +1,5 @@
 /*
-Features exploration
+FEATURES EXPLORATION
 Goal: Simple exploring every column, what are theirs characteristics, getting in touch with countries performance.
 */
 

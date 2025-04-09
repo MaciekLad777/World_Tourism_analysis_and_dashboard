@@ -1,5 +1,5 @@
 /*
-Creating tables
+CREATING TABLES
 Goal: Preparing tables and importing our data
 */
 

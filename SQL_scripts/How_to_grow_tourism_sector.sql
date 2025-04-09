@@ -1,5 +1,6 @@
 /*
-    HOW TO EXPAND TOURISM SECTOR?
+    HOW TO GROW TOURISM SECTOR.
+Goal:Find out what indicators helps in growing new tourism sector.
 Time-Based Analysis of TOP 10 Percentage Growers
 
         TOP 10 countries with the highest growth (receipts, arrivals)
