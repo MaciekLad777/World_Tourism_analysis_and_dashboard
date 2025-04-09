@@ -56,7 +56,7 @@ FETCH FIRST 20 ROWS ONLY;
 Commit
 
 --Now let's see what are average tourism metrics of this countries,AVG yearly departures, arrivals, tourism export and import percentage.
-
+--START from here 
 ALTER TABLE t20_receipts
 ADD AVG_yearly_arrival NUMBER(15,2)
 ADD AVG_yearly_departures NUMBER(15,2)

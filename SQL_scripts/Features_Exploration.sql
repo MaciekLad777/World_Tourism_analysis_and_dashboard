@@ -44,9 +44,11 @@ WHERE EXISTS (
   WHERE lc.country = c.country
 );
 
+
 COMMIT
 
 
+select * from tourism
 
 /*
 Step 2
