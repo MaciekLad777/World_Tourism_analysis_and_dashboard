@@ -3,18 +3,13 @@ FEATURES EXPLORATION
 Goal: Simple exploring every column, what are theirs characteristics, getting in touch with countries performance.
 */
 
-SELECT column_name
-FROM user_tab_columns
-WHERE table_name = 'TOURISM_DATA'
-ORDER BY column_id;
-
 /*
 Step 1
 We will explore country column, to this moment we know about only that it contains Strings, "propably" country names
 */
 
 
-SELECT UNIQUE(COUNTRY) FROM TOURISM_DATA
+SELECT * from country
 
 /*Country column has a lot of types of countries, regions ,continents, even economic zones,
 we must label all this to explore properly. It is nearly 300 records and any good automation aproach we can use.
@@ -34,29 +29,29 @@ select * from Location_classification
 --Adding new column for our geo category and labeling records in tourism_data
 
 
-ALTER TABLE tourism_data ADD geo_category VARCHAR2(50);
+ALTER TABLE country ADD geo_category VARCHAR2(50);
 
 
-UPDATE tourism_data td
+UPDATE country c
 SET geo_category = (
   SELECT lc.category
   FROM location_classification lc
-  WHERE lc.country = td.country
+  WHERE lc.country = c.country
 )
 WHERE EXISTS (
   SELECT 1
   FROM location_classification lc
-  WHERE lc.country = td.country
+  WHERE lc.country = c.country
 );
+
 COMMIT
 
-select * from tourism_data
 
 
 /*
 Step 2
 Country code. It does not give us any data insights, but works as country indicator-id.
-It is helpfull when it comes to combining tables, operating on country codes is much easier than on country names. We can lave it as it is.
+It is helpfull when it comes to combining tables, operating on country codes is much easier than on country names.
 */
 
 /*
@@ -64,15 +59,17 @@ Step 3
 Year, axis of our analysis. 
 */
 SELECT COUNT(DISTINCT year) AS Years_amount,MIN(year) AS First_year,MAX(year) AS Last_year
-FROM TOURISM_DATA
+FROM tourism
+
 
 
 /*
-Step 4
-Tourism_receipts. This feature shows country income from internatinoal tourism, all in USD.
+STEP 4
+Tourism_receipts – this feature represents each country's income from international tourism, expressed in USD.
+Data comes from the tourism table. To access readable country names and region types, we join with the country table.
 */
 
---Year by year countries with most tourism receipts
+-- Top 5 countries by tourism receipts, year by year
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -85,30 +82,31 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_receipts END) AS rank4_receipts,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_receipts END) AS rank5_receipts
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_receipts,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_receipts DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_receipts,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_receipts DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_receipts IS NOT NULL
-        AND geo_category = 'Country'
+        t.tourism_receipts IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
+
 /*
--USA is obliterating every one, best in every year.
--Rank2 is France, but far from US
--Rank3 and 4 is migrating back and forth mostly Italy, Germany, Thailand and Australia
--Rank5, introduce some new countries, like China and Turkiye
+Insights:
+- The USA consistently dominates in terms of tourism income.
+- France remains a strong second.
+- Italy, Germany, Thailand, and Australia frequently rotate in ranks 3–4.
+- Rank 5 occasionally includes China, Türkiye, and other emerging tourism economies.
 */
 
--- Now lets see performance of whole macroregions
-
+-- Top 5 macroregions by tourism receipts per year
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -121,34 +119,36 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_receipts END) AS rank4_receipts,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_receipts END) AS rank5_receipts
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_receipts,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_receipts DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_receipts,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_receipts DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_receipts IS NOT NULL
-        AND geo_category = 'Macroregion'
+        t.tourism_receipts IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
--Europe took whole podium, First place to European continet, second to European union, third to euro area
--Rank 4 Is North America
--Rank 5 was Latin america and Caribbeans, but in 2007 it switched to middle east and north africa
+Insights:
+- Europe holds all top three positions (Continent, EU, Euro Area).
+- North America consistently appears in 4th place.
+- Latin America and the Caribbean held 5th until 2007, when they were overtaken by the MENA region.
 */
 
 /*
-Step 5
-Tourism_export. The percentage of a country’s total exports derived from international tourism receipts. 
+STEP 5
+Tourism_exports – the percentage of a country’s total exports that comes from international tourism receipts.
+This metric shows how strongly a country's economy depends on tourism exports.
 */
 
-
+-- Top 5 countries by share of tourism in total exports (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -161,31 +161,30 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_exports END) AS rank4_exports,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_exports END) AS rank5_exports
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_exports,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_exports DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_exports,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_exports DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_exports IS NOT NULL
-        AND geo_category = 'Country'
+        t.tourism_exports IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
-
 /*
-This basically shows us which countries live from tourism, it is thiers main source of income.
-Most of top countries here are small "paradsie" islands, which don't produce anything significant.
-Only thing they can offer, are beautifull sunny beaches and views.
+Insights:
+- This metric highlights countries that heavily rely on tourism as their main export sector.
+- Most top performers are small island nations or destinations with minimal industrial or manufacturing capacity.
+- Their primary economic value lies in offering tropical, sunny, and scenic experiences to international tourists.
 */
 
-
-
+-- Top 5 macroregions by share of tourism in exports (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -198,35 +197,35 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_exports END) AS rank4_exports,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_exports END) AS rank5_exports
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_exports,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_exports DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_exports,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_exports DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_exports IS NOT NULL
-        AND geo_category = 'Macroregion'
+        t.tourism_exports IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Region analysis shows this good.
-All top ranks are for sunny islands regions, like Caribbeans and pacific islands
-In Rank 4 and 5 we can also see some middle east and africa
+Insights:
+- Regional analysis confirms the dominance of island regions such as the Caribbean and the Pacific.
+- Ranks 4 and 5 frequently feature the Middle East and African macroregions, showing moderate reliance on tourism exports.
 */
-
 
 /*
-Step 6
-Tourism_expenditures. The percentage of a country’s total imports spent on international tourism.
---!!There is no info about countries import in dolars, so we can't precisly calculate country profits from tourism. We can only compare percentages !!
+STEP 6
+Tourism_expenditures – the percentage of a country’s total imports spent on international tourism.
+Note: We do not have access to total import values in dollars, so we can only compare relative percentages – not actual profits or balances.
 */
 
+-- Top 5 countries by tourism expenditures as % of total imports (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -239,33 +238,31 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_expenditures END) AS rank4_expenditures,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_expenditures END) AS rank5_expenditures
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_expenditures,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_expenditures DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_expenditures,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_expenditures DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_expenditures IS NOT NULL
-        AND geo_category = 'Country'
+        t.tourism_expenditures IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Expanditures has a lot of common with export, a lot of spots are taken by small paradise islands,
-but it is definitely not one to one.
-Top expenditurers are countries, that do not have paradise climate, that pulls tourists from the whoel world,
-these are more niche, inland countries that try to build tourism sector despite lack of natural aids.
-Kuwait and Qatar , which on their own, are just chunks of desert, or Albania, which is hardly devastated becasue of region instability.
+Insights:
+- Tourism expenditures share some similarities with tourism exports, but not entirely.
+- Many top spenders are countries without classic tourism appeal (e.g. warm beaches), such as Kuwait, Qatar, or Albania.
+- These countries are building tourism sectors despite geographical or political disadvantages.
+- Their high percentage suggests tourism is a significant portion of their foreign spending.
 */
 
-
-
-
+-- Top 5 macroregions by tourism expenditures (percentage of imports)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -278,32 +275,36 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_expenditures END) AS rank4_expenditures,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_expenditures END) AS rank5_expenditures
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_expenditures,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_expenditures DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_expenditures,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_expenditures DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_expenditures IS NOT NULL
-        AND geo_category = 'Macroregion'
+        t.tourism_expenditures IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-In region Comparision, top spenders are middle east, and poor african countries, carribean and pacific spends much less.
+Insights:
+- Among regions, the top spenders are typically from the Middle East and lower-income African macroregions.
+- By contrast, Caribbean and Pacific regions – which are top exporters of tourism – spend significantly less abroad.
 */
 
 
 /*
-Step 7
-Tourism_arrivals. This feature shows amount of tourists that come to the country.
+STEP 7
+Tourism_arrivals – represents the number of international tourists arriving in each country per year.
+This metric is a direct indicator of a country's popularity as a travel destination.
 */
 
+-- Top 5 countries by international tourist arrivals (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -316,32 +317,34 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_arrivals END) AS rank4_arrivals,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_arrivals END) AS rank5_arrivals
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_arrivals,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_arrivals DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_arrivals,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_arrivals DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_arrivals IS NOT NULL AND
-         geo_category = 'Country'
+        t.tourism_arrivals IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Couple of first years are propably biased becuase of some null data, but later all looks legit
-France have the most tourists.
-Rank 3 belongs to China. 
-Rank 4 and 5 are most intresting, Spain and Mexico came out, both despite not apearing in top5 tourism income or expenditure table, they took alot of tourists
+Insights:
+- The first few years may contain some inconsistencies due to missing or incomplete data.
+- France consistently attracts the most tourists across the dataset.
+- China ranks 3rd in many years, while Spain and Mexico frequently appear in 4th and 5th – 
+  despite not being in the top 5 for revenue or expenditures.
+- This highlights countries that may attract large volumes of tourists but generate relatively lower income per visitor.
 */
 
-
-
-SELECT    year,
+-- Top 5 macroregions by international tourist arrivals (year by year)
+SELECT
+    year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
     MAX(CASE WHEN rank = 1 THEN tourism_arrivals END) AS rank1_arrivals,
     MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
@@ -352,35 +355,37 @@ SELECT    year,
     MAX(CASE WHEN rank = 4 THEN tourism_arrivals END) AS rank4_arrivals,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_arrivals END) AS rank5_arrivals
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_arrivals,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_arrivals DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_arrivals,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_arrivals DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_arrivals IS NOT NULL AND
-         geo_category = 'Macroregion'
+        t.tourism_arrivals IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
-
 /*
-Here situation is similar to the income table,Europe as a region pulls masive amount of tourists.
-While USA have a lot of tourists, North America as a whole, is not even there, we have East Asia and Pacific instead
+Insights:
+- Similar to receipts, Europe dominates in terms of incoming tourist volume.
+- While the United States is a top destination individually, the entire North American region does not rank as high.
+- East Asia & Pacific emerges strongly, showing concentrated tourism demand in specific subregions.
 */
 
 
 /*
-Step 8
-Tourism_departures.  The number of citizens or residents of a country who travel abroad for tourism.
+STEP 8
+Tourism_departures – the number of citizens or residents of a given country who travel abroad for tourism purposes.
+This metric indicates a population’s capacity and tendency to engage in international travel.
 */
 
-
+-- Top 5 countries by number of outgoing tourists (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -393,28 +398,29 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_departures END) AS rank4_departures,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_departures END) AS rank5_departures
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_departures,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_departures DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_departures,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_departures DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_departures IS NOT NULL
-        AND geo_category = 'Country'
+        t.tourism_departures IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Most of tourists come from developed countries, like USA, Germany, China, UK.
+Insights:
+- Most outbound tourism is generated by economically developed countries such as the USA, Germany, China, and the UK.
+- These nations tend to have high disposable income, good global mobility, and a strong culture of international travel.
 */
 
-
-
+-- Top 5 macroregions by number of outgoing tourists (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -427,34 +433,37 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN tourism_departures END) AS rank4_departures,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN tourism_departures END) AS rank5_departures
-
 FROM (
     SELECT 
-        year,
-        country,
-        tourism_departures,
-        RANK() OVER (PARTITION BY year ORDER BY tourism_departures DESC) AS rank
-    FROM tourism_data
+        t.year,
+        c.country,
+        t.tourism_departures,
+        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_departures DESC) AS rank
+    FROM tourism t
+    JOIN country c ON t.country_code = c.country_code
     WHERE 
-        tourism_departures IS NOT NULL
-        AND geo_category = 'Macroregion'
+        t.tourism_departures IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-No suprise that Europe took whole podium here.
-Then we have Asia and pacific, North America
+Insights:
+- As expected, Europe dominates outbound tourism by a large margin, occupying the top 3 positions.
+- Asia & Pacific and North America also appear frequently, reflecting their large populations and growing tourism industries.
 */
-
 
 
 /*
-Step 9
-Now we will check some more economic data. GDP.
+STEP 9
+GDP – Gross Domestic Product (in USD).
+This metric shows the total economic output of a country. We’ll use it to check the top economies over time
+and analyze any visible correlation between economic power and tourism performance.
 */
 
+-- Top 5 countries by GDP (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -467,34 +476,37 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN gdp END) AS rank4_gdp,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN gdp END) AS rank5_gdp
-
 FROM (
     SELECT 
-        year,
-        country,
-        gdp,
-        RANK() OVER (PARTITION BY year ORDER BY gdp DESC) AS rank
-    FROM tourism_data
+        e.year,
+        c.country,
+        e.gdp,
+        RANK() OVER (PARTITION BY e.year ORDER BY e.gdp DESC) AS rank
+    FROM economy e
+    JOIN country c ON e.country_code = c.country_code
     WHERE 
-        gdp IS NOT NULL
-        AND geo_category = 'Country'
+        e.gdp IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Top performers of course USA, China, Japan, Geramyny, UK, France.
-We can see that there is some corellation between this and tourism.
+Insights:
+- Unsurprisingly, the top economies remain consistent: USA, China, Japan, Germany, the UK, and France.
+- There is a noticeable correlation between GDP and tourism revenue — most countries leading economically are also top tourism earners.
+- However, the relationship is not perfect — GDP reflects economic size, while tourism depends on specific attractiveness and infrastructure.
 */
-
 
 
 /*
-Step 10
-Inflation
+STEP 10
+Inflation – general price growth in the economy, measured as a percentage.
+High inflation typically reflects economic instability, which can discourage both domestic and international travel.
 */
 
+-- Top 5 countries by inflation rate (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -507,27 +519,30 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN inflation END) AS rank4_inflation,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN inflation END) AS rank5_inflation
-
 FROM (
     SELECT 
-        year,
-        country,
-        inflation,
-        RANK() OVER (PARTITION BY year ORDER BY inflation DESC) AS rank
-    FROM tourism_data
+        e.year,
+        c.country,
+        e.inflation,
+        RANK() OVER (PARTITION BY e.year ORDER BY e.inflation DESC) AS rank
+    FROM economy e
+    JOIN country c ON e.country_code = c.country_code
     WHERE 
-        inflation IS NOT NULL
-        AND geo_category = 'Country'
+        e.inflation IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-None of countries in this inflation ranking, even apear in our tourism rankings, we can propably say, that economy crisis do not help in developing tourism
+Insights:
+- Countries with the highest inflation rarely appear in top tourism performance rankings.
+- This suggests that economic crises, reflected by high inflation, can significantly hinder tourism growth.
+- Many of the countries in this list may face instability, currency depreciation, or reduced attractiveness for visitors.
 */
 
-
+-- Top 5 macroregions by inflation rate (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -540,32 +555,36 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN inflation END) AS rank4_inflation,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN inflation END) AS rank5_inflation
-
 FROM (
     SELECT 
-        year,
-        country,
-        inflation,
-        RANK() OVER (PARTITION BY year ORDER BY inflation DESC) AS rank
-    FROM tourism_data
+        e.year,
+        c.country,
+        e.inflation,
+        RANK() OVER (PARTITION BY e.year ORDER BY e.inflation DESC) AS rank
+    FROM economy e
+    JOIN country c ON e.country_code = c.country_code
     WHERE 
-        inflation IS NOT NULL
-        AND geo_category = 'Macroregion'
+        e.inflation IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Same thing here. Any top tourism performer region, dont even apear here.
+Insights:
+- Similar patterns are observed at the macroregional level.
+- High-inflation regions are not among the leaders in tourism, confirming the negative relationship between inflation and tourism development.
 */
 
 
 /*
-Step 11
-Unemployment rate
+STEP 11
+Unemployment rate – percentage of the labor force that is unemployed.
+High unemployment often signals economic distress and lower consumer spending, which can negatively affect tourism infrastructure and travel behavior.
 */
 
+-- Top 5 countries by unemployment rate (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -578,26 +597,29 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN unemployment END) AS rank4_unemployment,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN unemployment END) AS rank5_unemployment
-
 FROM (
     SELECT 
-        year,
-        country,
-        unemployment,
-        RANK() OVER (PARTITION BY year ORDER BY unemployment DESC) AS rank
-    FROM tourism_data
+        e.year,
+        c.country,
+        e.unemployment,
+        RANK() OVER (PARTITION BY e.year ORDER BY e.unemployment DESC) AS rank
+    FROM economy e
+    JOIN country c ON e.country_code = c.country_code
     WHERE 
-        unemployment IS NOT NULL
-        AND geo_category = 'Country'
+        e.unemployment IS NOT NULL
+        AND c.geo_category = 'Country'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Unemployment rate also does not help. All top countries here are ones known for political or economical instability
+Insights:
+- Countries with the highest unemployment are often those with ongoing political or economic instability.
+- These are typically not major tourism destinations, suggesting that high unemployment correlates negatively with inbound tourism activity.
 */
 
+-- Top 5 macroregions by unemployment rate (year by year)
 SELECT
     year,
     MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
@@ -610,27 +632,26 @@ SELECT
     MAX(CASE WHEN rank = 4 THEN unemployment END) AS rank4_unemployment,
     MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
     MAX(CASE WHEN rank = 5 THEN unemployment END) AS rank5_unemployment
-
 FROM (
     SELECT 
-        year,
-        country,
-        unemployment,
-        RANK() OVER (PARTITION BY year ORDER BY unemployment DESC) AS rank
-    FROM tourism_data
+        e.year,
+        c.country,
+        e.unemployment,
+        RANK() OVER (PARTITION BY e.year ORDER BY e.unemployment DESC) AS rank
+    FROM economy e
+    JOIN country c ON e.country_code = c.country_code
     WHERE 
-        unemployment IS NOT NULL
-        AND geo_category = 'Macroregion'
+        e.unemployment IS NOT NULL
+        AND c.geo_category = 'Macroregion'
 )
 WHERE rank <= 5
 GROUP BY year
 ORDER BY year;
 
 /*
-Situation in here is not so harsh.
-South africa has biggest unemployment rate with indicator between 20% and 30%,
-but next positions situation is much better, mostly from 5% to about 13%.
-We can spot here regions like Europe or north america also. High unemployment kills tourism, but medium like 10% is not so problematic.
+Insights:
+- South Africa consistently ranks highest, with unemployment rates between 20% and 30%.
+- Other regions typically range from 5% to 13%.
+- Europe and North America occasionally appear, showing that moderate unemployment (around 10%) doesn’t severely affect tourism, but extreme levels can be harmful.
 */
 
---MAKE TABLES OF ALL RANKINGS COUNTRIES,SETS,LISTS
