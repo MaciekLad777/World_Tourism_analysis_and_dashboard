@@ -39,15 +39,17 @@ Economic Analysis  TOP 20 performing countries of ALL-TIME
 --We will put ours top performers into table, as we will use it often.
 
 
-select * from t20_receipts
-Create table T20_RECEIPTS(
-    country                 VARCHAR2(100) NOT NULL,
-    country_code            VARCHAR2(10) PRIMARY KEY,
-    total_revenue           NUMBER(20,2)
-)
+CREATE TABLE T20_RECEIPTS (
+    rank           NUMBER PRIMARY KEY,
+    country        VARCHAR2(100),
+    country_code   VARCHAR2(10)
+);
 
-INSERT INTO T20_RECEIPTS (country,country_code, total_revenue)
-SELECT c.country,MIN(c.country_code), SUM(t.tourism_receipts)
+INSERT INTO T20_RECEIPTS (rank, country, country_code)
+SELECT
+    RANK() OVER (ORDER BY SUM(t.tourism_receipts) DESC) AS rank,
+    c.country,
+    MIN(c.country_code) AS country_code
 FROM country c
 JOIN tourism t ON c.country_code = t.country_code
 WHERE c.geo_category = 'Country'
@@ -55,20 +57,54 @@ GROUP BY c.country
 HAVING SUM(t.tourism_receipts) IS NOT NULL
 ORDER BY SUM(t.tourism_receipts) DESC
 FETCH FIRST 20 ROWS ONLY;
+
 Commit
+
+select * from t20_receipts;
+
 
 --Now let's see what are average tourism metrics of this countries,AVG yearly departures, arrivals, tourism export and import percentage.
 --START from here 
-ALTER TABLE t20_receipts
-ADD AVG_yearly_arrival NUMBER(15,2)
-ADD AVG_yearly_departures NUMBER(15,2)
-ADD AVG_yearly_arr_dep_ratio NUMBER(5,2) --Arrivals/Departures ratio
-ADD AVG_yearly_exports_percentage NUMBER(15,2)
-ADD AVG_yearly_import_percentage NUMBER(15,2)
-ADD AVG_yearly_import_export_ratio NUMBER(5,2) --Export/Import Ratio  >1 = Export bigger than import (by percentages)
+
+--Now we will create seperate tables for every feature statistics
+--TABLES WILL LOOK LIKE THAT, LOT OF FEATURES
+CREATE TABLE Arrivals_STATS (
+    country_code                 VARCHAR2(10) PRIMARY KEY,
+
+    SUM_arrivals                 NUMBER(20,2),
+    SUM_arrivals_PCTL            NUMBER(5,2),
+    SUM_arrivals_QUALITY         NUMBER(5,2),
+
+    AVG_arrivals                 NUMBER(15,2),
+    AVG_arrivals_PCTL            NUMBER(5,2),
+    AVG_arrivals_QUALITY         NUMBER(5,2),
+
+    MEDIAN_arrivals              NUMBER(15,2),
+    MEDIAN_arrivals_PCTL         NUMBER(5,2),
+    MEDIAN_arrivals_QUALITY      NUMBER(5,2),
+
+    MIN_arrivals                 NUMBER(15,2),
+    MIN_arrivals_PCTL            NUMBER(5,2),
+    MIN_arrivals_QUALITY         NUMBER(5,2),
+
+    MAX_arrivals                 NUMBER(15,2),
+    MAX_arrivals_PCTL            NUMBER(5,2),
+    MAX_arrivals_QUALITY         NUMBER(5,2),
+
+    STDDEV_arrivals              NUMBER(15,2),
+    STDDEV_arrivals_PCTL         NUMBER(5,2),
+    STDDEV_arrivals_QUALITY      NUMBER(5,2)
+);
+
 
 --
-SELECT tr.country, ROUND(AVG(t.tourism_arrivals),0)
+SELECT tr.country_code,
+ROUND(SUM(t.tourism_arrivals),0),
+ROUND(AVG(t.tourism_arrivals),0),
+ROUND(MEDIAN(t.tourism_arrivals),0),
+ROUND(MIN(t.tourism_arrivals),0),
+ROUND(MAX(t.tourism_arrivals),0),
+ROUND(STDDEV(t.tourism_arrivals),0),
 FROM t20_receipts tr
 JOIN tourism t ON tr.country_code = t.country_code
 GROUP BY tr.country
