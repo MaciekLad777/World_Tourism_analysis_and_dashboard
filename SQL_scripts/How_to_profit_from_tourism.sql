@@ -38,6 +38,8 @@ Economic Analysis  TOP 20 performing countries of ALL-TIME
 
 --We will put ours top performers into table, as we will use it often.
 
+
+select * from t20_receipts
 Create table T20_RECEIPTS(
     country                 VARCHAR2(100) NOT NULL,
     country_code            VARCHAR2(10) PRIMARY KEY,
@@ -84,3 +86,44 @@ FROM t20_receipts tr
 JOIN tourism t ON tr.country_code = t.country_code
 GROUP BY tr.country
 ORDER BY ROUND(AVG(t.tourism_exports),0) DESC
+
+SELECT tr.country, ROUND(AVG(t.tourism_expenditures),0)
+FROM t20_receipts tr
+JOIN tourism t ON tr.country_code = t.country_code
+GROUP BY tr.country
+ORDER BY ROUND(AVG(t.tourism_expenditures),0) DESC
+
+SELECT tr.country, ROUND(AVG(t.tourism_exports)/AVG(t.tourism_expenditures),2) AS export_import_ratio
+FROM t20_receipts tr
+JOIN tourism t ON tr.country_code = t.country_code
+GROUP BY tr.country
+ORDER BY export_import_ratio DESC
+
+
+SELECT tr.country, ROUND(AVG(e.gdp),0) AS AVG_gdp
+FROM t20_receipts tr
+JOIN economy e ON tr.country_code = e.country_code
+GROUP BY tr.country
+ORDER BY  AVG_gdp DESC
+
+
+
+SELECT tr.country, ROUND(AVG(e.inflation),0) AS AVG_inflation
+FROM t20_receipts tr
+JOIN economy e ON tr.country_code = e.country_code
+GROUP BY tr.country
+ORDER BY  AVG_inflation DESC
+
+SELECT tr.country, ROUND(AVG(e.unemployment),0) AS AVG_unemployment
+FROM t20_receipts tr
+JOIN economy e ON tr.country_code = e.country_code
+GROUP BY tr.country
+ORDER BY  AVG_unemployment DESC
+
+
+
+SELECT tr.country, ROUND(AVG(w.avg_temperature),0) AS AVG_temperature
+FROM t20_receipts tr
+JOIN weather w ON tr.country_code = w.country_code
+GROUP BY tr.country
+ORDER BY  AVG_temperature DESC
