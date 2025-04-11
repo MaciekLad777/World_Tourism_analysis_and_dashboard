@@ -68,33 +68,15 @@ select * from t20_receipts;
 
 --Now we will create seperate tables for every feature statistics
 --TABLES WILL LOOK LIKE THAT, LOT OF FEATURES
-CREATE TABLE Arrivals_STATS (
-    country_code                 VARCHAR2(10) PRIMARY KEY,
 
-    SUM_arrivals                 NUMBER(20,2),
-    SUM_arrivals_PCTL            NUMBER(5,2),
-    SUM_arrivals_QUALITY         NUMBER(5,2),
-
-    AVG_arrivals                 NUMBER(15,2),
-    AVG_arrivals_PCTL            NUMBER(5,2),
-    AVG_arrivals_QUALITY         NUMBER(5,2),
-
-    MEDIAN_arrivals              NUMBER(15,2),
-    MEDIAN_arrivals_PCTL         NUMBER(5,2),
-    MEDIAN_arrivals_QUALITY      NUMBER(5,2),
-
-    MIN_arrivals                 NUMBER(15,2),
-    MIN_arrivals_PCTL            NUMBER(5,2),
-    MIN_arrivals_QUALITY         NUMBER(5,2),
-
-    MAX_arrivals                 NUMBER(15,2),
-    MAX_arrivals_PCTL            NUMBER(5,2),
-    MAX_arrivals_QUALITY         NUMBER(5,2),
-
-    STDDEV_arrivals              NUMBER(15,2),
-    STDDEV_arrivals_PCTL         NUMBER(5,2),
-    STDDEV_arrivals_QUALITY      NUMBER(5,2)
+CREATE TABLE feature_stats (
+    country_code        VARCHAR2(10),
+    feature             VARCHAR2(50),  -- np. 'arrivals', 'gdp', 'inflation'
+    stat_name           VARCHAR2(20),  -- np. 'AVG', 'SUM', 'MEDIAN', 'STDDEV', 'QUALITY', 'PCTL'
+    stat_value          NUMBER(20,4),  -- uniwersalny numer
+    PRIMARY KEY (country_code, feature, stat_name)
 );
+
 
 
 --
