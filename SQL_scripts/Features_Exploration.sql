@@ -63,6 +63,92 @@ Year, axis of our analysis.
 SELECT COUNT(DISTINCT year) AS Years_amount,MIN(year) AS First_year,MAX(year) AS Last_year
 FROM tourism
 
+--Every next feature will be explored in the same way, so we will introduce procedure to not repeat same code
+
+
+CREATE OR REPLACE TYPE top5_row AS OBJECT (
+  year NUMBER,
+  rank1 VARCHAR2(100), rank1_val NUMBER,
+  rank2 VARCHAR2(100), rank2_val NUMBER,
+  rank3 VARCHAR2(100), rank3_val NUMBER,
+  rank4 VARCHAR2(100), rank4_val NUMBER,
+  rank5 VARCHAR2(100), rank5_val NUMBER
+);
+
+CREATE OR REPLACE TYPE top5_table AS TABLE OF top5_row;
+
+/
+
+CREATE OR REPLACE FUNCTION get_top5_by_feature_dyn (
+  p_column_name  IN VARCHAR2,
+  p_geo_category IN VARCHAR2,
+  p_table_name   IN VARCHAR2
+) RETURN top5_table PIPELINED
+AS
+  v_sql   CLOB;
+  v_year  NUMBER;
+  v_r1    VARCHAR2(100); v_rv1 NUMBER;
+  v_r2    VARCHAR2(100); v_rv2 NUMBER;
+  v_r3    VARCHAR2(100); v_rv3 NUMBER;
+  v_r4    VARCHAR2(100); v_rv4 NUMBER;
+  v_r5    VARCHAR2(100); v_rv5 NUMBER;
+  
+  TYPE ref_cursor IS REF CURSOR;
+  rc ref_cursor;
+BEGIN
+  v_sql := '
+    SELECT year,
+           MAX(CASE WHEN rank = 1 THEN country END),
+           MAX(CASE WHEN rank = 1 THEN val END),
+           MAX(CASE WHEN rank = 2 THEN country END),
+           MAX(CASE WHEN rank = 2 THEN val END),
+           MAX(CASE WHEN rank = 3 THEN country END),
+           MAX(CASE WHEN rank = 3 THEN val END),
+           MAX(CASE WHEN rank = 4 THEN country END),
+           MAX(CASE WHEN rank = 4 THEN val END),
+           MAX(CASE WHEN rank = 5 THEN country END),
+           MAX(CASE WHEN rank = 5 THEN val END)
+    FROM (
+      SELECT t.year, c.country,
+             t.' || p_column_name || ' AS val,
+             RANK() OVER (PARTITION BY t.year ORDER BY t.' || p_column_name || ' DESC) AS rank
+      FROM ' || p_table_name || ' t
+      JOIN country c ON t.country_code = c.country_code
+      WHERE t.' || p_column_name || ' IS NOT NULL
+        AND c.geo_category = :geo
+    )
+    WHERE rank <= 5
+    GROUP BY year
+    ORDER BY year';
+
+  OPEN rc FOR v_sql USING p_geo_category;
+
+  LOOP
+    FETCH rc INTO v_year, v_r1, v_rv1, v_r2, v_rv2, v_r3, v_rv3, v_r4, v_rv4, v_r5, v_rv5;
+    EXIT WHEN rc%NOTFOUND;
+
+    PIPE ROW (
+      top5_row(v_year, v_r1, v_rv1, v_r2, v_rv2, v_r3, v_rv3, v_r4, v_rv4, v_r5, v_rv5)
+    );
+  END LOOP;
+
+  CLOSE rc;
+  RETURN;
+END;
+/
+
+
+
+
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_receipts', 'Country', 'tourism')
+);
+
+
+
+
+
+
 
 
 /*
@@ -72,33 +158,10 @@ Data comes from the tourism table. To access readable country names and region t
 */
 
 -- Top 5 countries by tourism receipts, year by year
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_receipts END) AS rank1_receipts,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_receipts END) AS rank2_receipts,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_receipts END) AS rank3_receipts,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_receipts END) AS rank4_receipts,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_receipts END) AS rank5_receipts
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_receipts,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_receipts DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_receipts IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_receipts', 'Country', 'tourism')
+);
+
 
 /*
 Insights:
@@ -109,33 +172,10 @@ Insights:
 */
 
 -- Top 5 macroregions by tourism receipts per year
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_receipts END) AS rank1_receipts,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_receipts END) AS rank2_receipts,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_receipts END) AS rank3_receipts,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_receipts END) AS rank4_receipts,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_receipts END) AS rank5_receipts
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_receipts,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_receipts DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_receipts IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_receipts', 'Macroregion', 'tourism')
+);
+
 
 /*
 Insights:
@@ -151,33 +191,10 @@ This metric shows how strongly a country's economy depends on tourism exports.
 */
 
 -- Top 5 countries by share of tourism in total exports (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_exports END) AS rank1_exports,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_exports END) AS rank2_exports,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_exports END) AS rank3_exports,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_exports END) AS rank4_exports,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_exports END) AS rank5_exports
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_exports,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_exports DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_exports IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_exports', 'Country', 'tourism')
+);
+
 
 /*
 Insights:
@@ -187,33 +204,10 @@ Insights:
 */
 
 -- Top 5 macroregions by share of tourism in exports (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_exports END) AS rank1_exports,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_exports END) AS rank2_exports,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_exports END) AS rank3_exports,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_exports END) AS rank4_exports,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_exports END) AS rank5_exports
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_exports,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_exports DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_exports IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_exports', 'Macroregion', 'tourism')
+);
+
 
 /*
 Insights:
@@ -228,33 +222,9 @@ Note: We do not have access to total import values in dollars, so we can only co
 */
 
 -- Top 5 countries by tourism expenditures as % of total imports (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_expenditures END) AS rank1_expenditures,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_expenditures END) AS rank2_expenditures,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_expenditures END) AS rank3_expenditures,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_expenditures END) AS rank4_expenditures,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_expenditures END) AS rank5_expenditures
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_expenditures,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_expenditures DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_expenditures IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_expenditures', 'Country', 'tourism')
+);
 
 /*
 Insights:
@@ -265,33 +235,9 @@ Insights:
 */
 
 -- Top 5 macroregions by tourism expenditures (percentage of imports)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_expenditures END) AS rank1_expenditures,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_expenditures END) AS rank2_expenditures,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_expenditures END) AS rank3_expenditures,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_expenditures END) AS rank4_expenditures,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_expenditures END) AS rank5_expenditures
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_expenditures,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_expenditures DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_expenditures IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_expenditures', 'Macroregion', 'tourism')
+);
 
 /*
 Insights:
@@ -307,33 +253,9 @@ This metric is a direct indicator of a country's popularity as a travel destinat
 */
 
 -- Top 5 countries by international tourist arrivals (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_arrivals END) AS rank1_arrivals,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_arrivals END) AS rank2_arrivals,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_arrivals END) AS rank3_arrivals,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_arrivals END) AS rank4_arrivals,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_arrivals END) AS rank5_arrivals
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_arrivals,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_arrivals DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_arrivals IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_arrivals', 'Country', 'tourism')
+);
 
 /*
 Insights:
@@ -345,33 +267,9 @@ Insights:
 */
 
 -- Top 5 macroregions by international tourist arrivals (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_arrivals END) AS rank1_arrivals,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_arrivals END) AS rank2_arrivals,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_arrivals END) AS rank3_arrivals,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_arrivals END) AS rank4_arrivals,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_arrivals END) AS rank5_arrivals
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_arrivals,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_arrivals DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_arrivals IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_arrivals', 'Macroregion', 'tourism')
+);
 
 /*
 Insights:
@@ -388,33 +286,9 @@ This metric indicates a population’s capacity and tendency to engage in intern
 */
 
 -- Top 5 countries by number of outgoing tourists (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_departures END) AS rank1_departures,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_departures END) AS rank2_departures,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_departures END) AS rank3_departures,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_departures END) AS rank4_departures,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_departures END) AS rank5_departures
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_departures,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_departures DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_departures IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_departures', 'Country', 'tourism')
+);
 
 /*
 Insights:
@@ -423,34 +297,9 @@ Insights:
 */
 
 -- Top 5 macroregions by number of outgoing tourists (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN tourism_departures END) AS rank1_departures,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN tourism_departures END) AS rank2_departures,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN tourism_departures END) AS rank3_departures,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN tourism_departures END) AS rank4_departures,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN tourism_departures END) AS rank5_departures
-FROM (
-    SELECT 
-        t.year,
-        c.country,
-        t.tourism_departures,
-        RANK() OVER (PARTITION BY t.year ORDER BY t.tourism_departures DESC) AS rank
-    FROM tourism t
-    JOIN country c ON t.country_code = c.country_code
-    WHERE 
-        t.tourism_departures IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
-
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('tourism_departures', 'Macroregion', 'tourism')
+);
 /*
 Insights:
 - As expected, Europe dominates outbound tourism by a large margin, occupying the top 3 positions.
@@ -466,39 +315,23 @@ and analyze any visible correlation between economic power and tourism performan
 */
 
 -- Top 5 countries by GDP (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN gdp END) AS rank1_gdp,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN gdp END) AS rank2_gdp,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN gdp END) AS rank3_gdp,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN gdp END) AS rank4_gdp,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN gdp END) AS rank5_gdp
-FROM (
-    SELECT 
-        e.year,
-        c.country,
-        e.gdp,
-        RANK() OVER (PARTITION BY e.year ORDER BY e.gdp DESC) AS rank
-    FROM economy e
-    JOIN country c ON e.country_code = c.country_code
-    WHERE 
-        e.gdp IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
-
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('gdp', 'Country', 'economy')
+);
 /*
 Insights:
 - Unsurprisingly, the top economies remain consistent: USA, China, Japan, Germany, the UK, and France.
 - There is a noticeable correlation between GDP and tourism revenue — most countries leading economically are also top tourism earners.
 - However, the relationship is not perfect — GDP reflects economic size, while tourism depends on specific attractiveness and infrastructure.
+*/
+
+
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('gdp', 'Macroregion', 'economy')
+);
+Insights:
+/*
+- Of course all high ranks here are East Asia, Europe and North America
 */
 
 
@@ -509,34 +342,9 @@ High inflation typically reflects economic instability, which can discourage bot
 */
 
 -- Top 5 countries by inflation rate (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN inflation END) AS rank1_inflation,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN inflation END) AS rank2_inflation,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN inflation END) AS rank3_inflation,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN inflation END) AS rank4_inflation,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN inflation END) AS rank5_inflation
-FROM (
-    SELECT 
-        e.year,
-        c.country,
-        e.inflation,
-        RANK() OVER (PARTITION BY e.year ORDER BY e.inflation DESC) AS rank
-    FROM economy e
-    JOIN country c ON e.country_code = c.country_code
-    WHERE 
-        e.inflation IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
-
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('inflation', 'Country', 'economy')
+);
 /*
 Insights:
 - Countries with the highest inflation rarely appear in top tourism performance rankings.
@@ -545,33 +353,9 @@ Insights:
 */
 
 -- Top 5 macroregions by inflation rate (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN inflation END) AS rank1_inflation,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN inflation END) AS rank2_inflation,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN inflation END) AS rank3_inflation,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN inflation END) AS rank4_inflation,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN inflation END) AS rank5_inflation
-FROM (
-    SELECT 
-        e.year,
-        c.country,
-        e.inflation,
-        RANK() OVER (PARTITION BY e.year ORDER BY e.inflation DESC) AS rank
-    FROM economy e
-    JOIN country c ON e.country_code = c.country_code
-    WHERE 
-        e.inflation IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('inflation', 'Macroregion', 'economy')
+);
 
 /*
 Insights:
@@ -587,33 +371,9 @@ High unemployment often signals economic distress and lower consumer spending, w
 */
 
 -- Top 5 countries by unemployment rate (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN unemployment END) AS rank1_unemployment,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN unemployment END) AS rank2_unemployment,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN unemployment END) AS rank3_unemployment,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN unemployment END) AS rank4_unemployment,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN unemployment END) AS rank5_unemployment
-FROM (
-    SELECT 
-        e.year,
-        c.country,
-        e.unemployment,
-        RANK() OVER (PARTITION BY e.year ORDER BY e.unemployment DESC) AS rank
-    FROM economy e
-    JOIN country c ON e.country_code = c.country_code
-    WHERE 
-        e.unemployment IS NOT NULL
-        AND c.geo_category = 'Country'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('unemployment', 'Country', 'economy')
+);
 
 /*
 Insights:
@@ -622,34 +382,9 @@ Insights:
 */
 
 -- Top 5 macroregions by unemployment rate (year by year)
-SELECT
-    year,
-    MAX(CASE WHEN rank = 1 THEN country END) AS rank1,
-    MAX(CASE WHEN rank = 1 THEN unemployment END) AS rank1_unemployment,
-    MAX(CASE WHEN rank = 2 THEN country END) AS rank2,
-    MAX(CASE WHEN rank = 2 THEN unemployment END) AS rank2_unemployment,
-    MAX(CASE WHEN rank = 3 THEN country END) AS rank3,
-    MAX(CASE WHEN rank = 3 THEN unemployment END) AS rank3_unemployment,
-    MAX(CASE WHEN rank = 4 THEN country END) AS rank4,
-    MAX(CASE WHEN rank = 4 THEN unemployment END) AS rank4_unemployment,
-    MAX(CASE WHEN rank = 5 THEN country END) AS rank5,
-    MAX(CASE WHEN rank = 5 THEN unemployment END) AS rank5_unemployment
-FROM (
-    SELECT 
-        e.year,
-        c.country,
-        e.unemployment,
-        RANK() OVER (PARTITION BY e.year ORDER BY e.unemployment DESC) AS rank
-    FROM economy e
-    JOIN country c ON e.country_code = c.country_code
-    WHERE 
-        e.unemployment IS NOT NULL
-        AND c.geo_category = 'Macroregion'
-)
-WHERE rank <= 5
-GROUP BY year
-ORDER BY year;
-
+SELECT * FROM TABLE(
+  get_top5_by_feature_dyn('inflation', 'Macroregion', 'economy')
+);
 /*
 Insights:
 - South Africa consistently ranks highest, with unemployment rates between 20% and 30%.
