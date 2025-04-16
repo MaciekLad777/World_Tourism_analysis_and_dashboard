@@ -11,6 +11,8 @@ Economic Analysis  TOP 20 performing countries of ALL-TIME
     1. What increases total tourism revenue?       RICH-tourism
         TOP 20 
             AVG(), MEDIAN(), STDDEV(), MIN(), MAX(), PERCENTILE_DISC()
+                - arrivals
+                - depatures
                 - gdp
                 - unemployment
                 - inflation
@@ -63,85 +65,132 @@ Commit
 select * from t20_receipts;
 
 
---Now let's see what are average tourism metrics of this countries,AVG yearly departures, arrivals, tourism export and import percentage.
---START from here 
+--As we have our's top performers, lets calculate country statistics precisly.
+--We will apply a couple of statisitcs actions to understand every measurment deeply.
 
---Now we will create seperate tables for every feature statistics
---TABLES WILL LOOK LIKE THAT, LOT OF FEATURES
-
-CREATE TABLE feature_stats (
-    country_code        VARCHAR2(10),
-    feature             VARCHAR2(50),  -- np. 'arrivals', 'gdp', 'inflation'
-    stat_name           VARCHAR2(20),  -- np. 'AVG', 'SUM', 'MEDIAN', 'STDDEV', 'QUALITY', 'PCTL'
-    stat_value          NUMBER(20,4),  -- uniwersalny numer
-    PRIMARY KEY (country_code, feature, stat_name)
-);
+--We will create one single table, for all the stats, we need only 4 columns
 
 
-
---
-SELECT tr.country_code,
-ROUND(SUM(t.tourism_arrivals),0),
-ROUND(AVG(t.tourism_arrivals),0),
-ROUND(MEDIAN(t.tourism_arrivals),0),
-ROUND(MIN(t.tourism_arrivals),0),
-ROUND(MAX(t.tourism_arrivals),0),
-ROUND(STDDEV(t.tourism_arrivals),0),
-FROM t20_receipts tr
-JOIN tourism t ON tr.country_code = t.country_code
-GROUP BY tr.country
-ORDER BY ROUND(AVG(t.tourism_arrivals),0) DESC
---
-SELECT tr.country, ROUND(AVG(t.tourism_departures),0)
-FROM t20_receipts tr
-JOIN tourism t ON tr.country_code = t.country_code
-GROUP BY tr.country
-ORDER BY ROUND(AVG(t.tourism_departures),0) DESC
-
---
-SELECT tr.country, ROUND(AVG(t.tourism_exports),0)
-FROM t20_receipts tr
-JOIN tourism t ON tr.country_code = t.country_code
-GROUP BY tr.country
-ORDER BY ROUND(AVG(t.tourism_exports),0) DESC
-
-SELECT tr.country, ROUND(AVG(t.tourism_expenditures),0)
-FROM t20_receipts tr
-JOIN tourism t ON tr.country_code = t.country_code
-GROUP BY tr.country
-ORDER BY ROUND(AVG(t.tourism_expenditures),0) DESC
-
-SELECT tr.country, ROUND(AVG(t.tourism_exports)/AVG(t.tourism_expenditures),2) AS export_import_ratio
-FROM t20_receipts tr
-JOIN tourism t ON tr.country_code = t.country_code
-GROUP BY tr.country
-ORDER BY export_import_ratio DESC
+--DROP TABLE feature_overall_stats
 
 
-SELECT tr.country, ROUND(AVG(e.gdp),0) AS AVG_gdp
-FROM t20_receipts tr
-JOIN economy e ON tr.country_code = e.country_code
-GROUP BY tr.country
-ORDER BY  AVG_gdp DESC
+CREATE TABLE feature_overall_stats (
+    country_code    VARCHAR2(10),
+    feature         VARCHAR2(50),
+    stat_name       VARCHAR2(20),
+    stat_value      NUMBER(20, 4)
+)
+COMMIT;
 
 
 
-SELECT tr.country, ROUND(AVG(e.inflation),0) AS AVG_inflation
-FROM t20_receipts tr
-JOIN economy e ON tr.country_code = e.country_code
-GROUP BY tr.country
-ORDER BY  AVG_inflation DESC
-
-SELECT tr.country, ROUND(AVG(e.unemployment),0) AS AVG_unemployment
-FROM t20_receipts tr
-JOIN economy e ON tr.country_code = e.country_code
-GROUP BY tr.country
-ORDER BY  AVG_unemployment DESC
 
 
+CREATE OR REPLACE PROCEDURE insert_feature_stats (
+    p_column_name  IN VARCHAR2,  -- np. 'tourism_arrivals', 'gdp'
+    p_table_name   IN VARCHAR2   -- np. 'tourism', 'economy'
+) AS
+    v_sql   CLOB;
+BEGIN
+    -- AVG
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''AVG'', ROUND(AVG(' || p_column_name || '), 2)
+              FROM ' || p_table_name || '
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
 
-SELECT tr.country, ROUND(AVG(w.avg_temperature),0) AS AVG_temperature
-FROM t20_receipts tr
-JOIN weather w ON tr.country_code = w.country_code
-GROUP BY tr.country
-ORDER BY  AVG_temperature DESC
+    -- SUM
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''SUM'', ROUND(SUM(' || p_column_name || '), 2)
+              FROM ' || p_table_name || '
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+
+    -- MIN
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''MIN'', MIN(' || p_column_name || ')
+              FROM ' || p_table_name || '
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+
+    -- MAX
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''MAX'', MAX(' || p_column_name || ')
+              FROM ' || p_table_name || '
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+
+    -- STDDEV
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''STDDEV'', ROUND(STDDEV(' || p_column_name || '), 2)
+              FROM ' || p_table_name || '
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+
+    -- MEDIAN
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''MEDIAN'', ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ' || p_column_name || '), 2)
+              FROM ' || p_table_name || '
+              WHERE ' || p_column_name || ' IS NOT NULL
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+
+    -- QUALITY (23 lat)
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT country_code, ''' || p_column_name || ''', ''QUALITY'', ROUND(COUNT(' || p_column_name || ') * 100 / 23, 2)
+              FROM ' || p_table_name || '
+              GROUP BY country_code';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+
+    -- PCTL (percentile rank by SUM)
+    v_sql := 'INSERT INTO feature_overall_stats (country_code, feature, stat_name, stat_value)
+              SELECT * FROM (
+                SELECT country_code,
+                       ''' || p_column_name || ''' AS feature,
+                       ''PCTL'' AS stat_name,
+                       ROUND(PERCENT_RANK() OVER (ORDER BY SUM(' || p_column_name || ')), 4) AS stat_value
+                FROM ' || p_table_name || '
+                GROUP BY country_code
+              )';
+    EXECUTE IMMEDIATE v_sql;
+    COMMIT;
+END;
+/
+
+--Now we can simply calculate it all with only a couple of lines
+BEGIN
+  -- TOURISM FEATURES
+  insert_feature_stats('tourism_arrivals', 'tourism');
+  insert_feature_stats('tourism_departures', 'tourism');
+  insert_feature_stats('tourism_receipts', 'tourism');
+  insert_feature_stats('tourism_exports', 'tourism');
+  insert_feature_stats('tourism_expenditures', 'tourism');
+
+  -- ECONOMY FEATURES
+  insert_feature_stats('gdp', 'economy');
+  insert_feature_stats('inflation', 'economy');
+  insert_feature_stats('unemployment', 'economy');
+  -- WEATHER FEATURES
+  insert_feature_stats('avg_temperature','weather');
+END;
+/
+
+
+select * from feature_overall_stats
+select COUNT(*) from feature_overall_stats
+-- Now we have nearly 18 thousnt rows of measures
+
+
+
+
+
+
+
+
